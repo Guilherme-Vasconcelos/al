@@ -1,11 +1,11 @@
 [package]
-name = "hl"
+name = "al"
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.92"
-description = "hl (horrible lisp) is a simple lisp implementation made for fun"
+description = "al (awful lisp) is a simple lisp implementation made for fun"
 license = "GPL-3.0-or-later"
-repository = "https://github.com/Guilherme-Vasconcelos/hl"
+repository = "https://github.com/Guilherme-Vasconcelos/al"
 keywords = ["lisp", "languages", "interpreters"]
 categories = ["compilers", "development-tools"]
 

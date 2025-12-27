@@ -1,0 +1,6 @@
+[doc]
+# `xdg-open` doesn't work in emacs unless I set `process-connection-type` to `nil`,
+# but doing that breaks other things (like colors in git). I'm very confused about all that, so
+# I'm setting the browser explicitly, which prevents opener::open from being called and instead
+# explicitly calls firefox: https://github.com/rust-lang/cargo/blob/94c368ad2b9db0f0da5bdd8421cea13786ce4412/src/cargo/util/open.rs
+browser = "firefox"

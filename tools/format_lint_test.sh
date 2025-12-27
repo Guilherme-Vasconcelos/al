@@ -2,7 +2,7 @@
 
 set -eux
 
+cargo fmt
 cargo check
 cargo clippy
 cargo test
-cargo fmt
