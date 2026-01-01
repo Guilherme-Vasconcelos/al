@@ -16,7 +16,7 @@ pub struct Token {
 	pub kind: TokenKind,
 }
 
-pub fn parse_bytes<'a>(buf: &'a [u8]) -> Result<Vec<Token>, TokenizationError> {
+pub fn parse_bytes(buf: &[u8]) -> Result<Vec<Token>, TokenizationError> {
 	Tokenizer::new(buf).collect()
 }
 
@@ -60,7 +60,7 @@ impl<'a> Tokenizer<'a> {
 	}
 
 	fn parse_num(&mut self) -> Result<Token, TokenizationError> {
-		assert!(self.cursor.peek().is_some_and(|c| c.is_ascii_digit()));
+		assert!(self.cursor.peek().is_some_and(u8::is_ascii_digit));
 
 		let mut buf = String::new();
 		while let Some(c) = self.cursor.get() {
@@ -97,7 +97,7 @@ impl<'a> Tokenizer<'a> {
 			}
 			_ => panic!("expected parse_num's result to be a number"),
 		}
-		return Ok(tok);
+		Ok(tok)
 	}
 
 	fn parse_sym(&mut self) -> Token {
@@ -140,7 +140,7 @@ impl Iterator for Tokenizer<'_> {
 	type Item = Result<Token, TokenizationError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		while self.cursor.peek().is_some_and(|c| c.is_ascii_whitespace()) {
+		while self.cursor.peek().is_some_and(u8::is_ascii_whitespace) {
 			// Skip all whitespaces
 			self.cursor.advance();
 		}

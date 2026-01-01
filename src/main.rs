@@ -1,10 +1,16 @@
-#![warn(clippy::pedantic, clippy::nursery, clippy::cargo)]
+#![warn(
+	clippy::pedantic,
+	clippy::nursery,
+	clippy::cargo,
+	// Restriction category
+	clippy::allow_attributes_without_reason)]
 
 mod cursor;
 mod environment;
 mod error;
 mod interpreter;
 mod object;
+mod primitive;
 mod reader;
 mod tokenizer;
 

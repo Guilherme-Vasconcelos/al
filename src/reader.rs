@@ -1,6 +1,6 @@
 //! A few special notes about the reader:
 //!
-//! '()', i.e. empty list. This is the only case where the reader may produce a LispObject NIL
+//! '()', i.e. empty list. This is the only case where the reader may produce a `LispObject` NIL
 //! rather than letting the evaluator resolve it later, because there's no other valid way to
 //! represent it as it is not a valid cons cell.
 //! In other words, the following inputs are treated differently:
@@ -8,7 +8,7 @@
 //! - `()` -> NOT a valid cons cell that gets resolved to NIL by the reader.
 //! - `(nil . nil)` -> a fully valid cons cell whose CAR is the symbol nil and CDR is the symbol nil.
 //!
-//! The reader does not ever produce a Func LispObject, only Cons or atoms. Whether a Cons will get resolved
+//! The reader does not ever produce a Func `LispObject`, only Cons or atoms. Whether a Cons will get resolved
 //! to a Func later or not is up to the evaluator. In other words, Cons is a data that has not yet
 //! been evaluated, and Func is a Cons that has been evaluated to a Function.
 
@@ -19,7 +19,7 @@ use crate::cursor::Cursor;
 use crate::object::{LispObject, LispObjectKind};
 use crate::tokenizer::{Token, TokenKind};
 
-pub fn parse_tokens<'a>(tokens: &'a [Token]) -> Result<Vec<LispObject>, ReadingError> {
+pub fn parse_tokens(tokens: &[Token]) -> Result<Vec<LispObject>, ReadingError> {
 	Reader::new(tokens).collect()
 }
 
@@ -45,7 +45,7 @@ struct Reader<'a> {
 }
 
 impl<'a> Reader<'a> {
-	pub fn new(input: &'a [Token]) -> Self {
+	pub const fn new(input: &'a [Token]) -> Self {
 		Self {
 			cursor: Cursor::new(input),
 		}
@@ -66,7 +66,7 @@ impl<'a> Reader<'a> {
 					.peek()
 					.is_some_and(|t| t.kind == TokenKind::ParenClose)
 				{
-					let obj = LispObject::new(LispObjectKind::Nil);
+					let obj = LispObject::new_nil();
 					self.cursor.advance();
 					Ok(obj)
 				} else {
@@ -93,7 +93,7 @@ impl<'a> Reader<'a> {
 			TokenKind::Sym(_s) => make_atom_from_token(tok),
 			TokenKind::ParenOpen => {
 				let tok = self.cursor.peek().ok_or(ReadingError::IncompleteList)?;
-				if let TokenKind::ParenClose = tok.kind {
+				if tok.kind == TokenKind::ParenClose {
 					self.cursor.advance();
 					LispObject::new_nil()
 				} else {
@@ -118,17 +118,18 @@ impl<'a> Reader<'a> {
 			TokenKind::ParenClose => self.cursor.advance(),
 			_ => {
 				if let LispObjectKind::Cons(c) = &mut parent.kind {
-					if c.cdr.kind != LispObjectKind::Nil {
-						panic!("parent has an initialized CDR");
-					}
+					assert!(
+						c.cdr.kind == LispObjectKind::Nil,
+						"parent has an initialized CDR"
+					);
 
-					c.cdr = Box::new(LispObject::new_empty_cons());
+					*c.cdr = LispObject::new_empty_cons();
 					self.parse_obj_in_list(&mut c.cdr)?;
 				} else {
 					unreachable!();
 				}
 			}
-		};
+		}
 
 		Ok(())
 	}
@@ -145,8 +146,8 @@ impl Iterator for Reader<'_> {
 
 fn make_atom_from_token(tok: &Token) -> LispObject {
 	match &tok.kind {
-		TokenKind::Num(n) => LispObject::new(LispObjectKind::Num(*n)),
-		TokenKind::Sym(s) => LispObject::new(LispObjectKind::Sym(s.to_owned().into())),
+		TokenKind::Num(n) => LispObject::new_num(*n),
+		TokenKind::Sym(s) => LispObject::new_sym(s.to_owned()),
 		TokenKind::ParenOpen | TokenKind::ParenClose => {
 			panic!("make_atom_from_token should only be called for atoms")
 		}
@@ -171,9 +172,9 @@ mod tests {
 		assert_eq!(
 			objs,
 			vec![
-				LispObject::new(LispObjectKind::Num(5)),
-				LispObject::new(LispObjectKind::Num(6)),
-				LispObject::new(LispObjectKind::Sym("foobar".to_string().into())),
+				LispObject::new_num(5),
+				LispObject::new_num(6),
+				LispObject::new_sym("foobar".to_string()),
 			]
 		);
 	}
@@ -201,6 +202,23 @@ mod tests {
 	}
 
 	#[test]
+	fn test_mega_nested_list() {
+		let input = "(((1)))";
+		let objs = build_objs_from_src(input).unwrap();
+
+		assert_eq!(
+			objs,
+			vec![LispObject::new_cons(
+				LispObject::new_cons(
+					LispObject::new_cons(LispObject::new_num(1), LispObject::new_nil(),),
+					LispObject::new_nil(),
+				),
+				LispObject::new_nil(),
+			)]
+		);
+	}
+
+	#[test]
 	fn test_empty_list_and_other_atoms_within_list() {
 		let input = "(() 1 ())";
 		let objs = build_objs_from_src(input).unwrap();
@@ -210,7 +228,7 @@ mod tests {
 			vec![LispObject::new_cons(
 				LispObject::new_nil(),
 				LispObject::new_cons(
-					LispObject::new(LispObjectKind::Num(1)),
+					LispObject::new_num(1),
 					LispObject::new_cons(LispObject::new_nil(), LispObject::new_nil(),)
 				)
 			)]
@@ -225,7 +243,7 @@ mod tests {
 		assert_eq!(
 			objs,
 			vec![LispObject::new_cons(
-				LispObject::new(LispObjectKind::Num(1)),
+				LispObject::new_num(1),
 				LispObject::new_nil(),
 			)]
 		);
@@ -239,11 +257,11 @@ mod tests {
 		assert_eq!(
 			objs,
 			vec![LispObject::new_cons(
-				LispObject::new(LispObjectKind::Sym("+".to_owned().into())),
+				LispObject::new_sym("+".to_owned()),
 				LispObject::new_cons(
-					LispObject::new(LispObjectKind::Num(1)),
+					LispObject::new_num(1),
 					LispObject::new_cons(
-						LispObject::new(LispObjectKind::Sym("test-sym".to_owned().into())),
+						LispObject::new_sym("test-sym".to_owned()),
 						LispObject::new_nil()
 					)
 				)
@@ -260,31 +278,28 @@ mod tests {
 			objs,
 			vec![LispObject::new_cons(
 				LispObject::new_cons(
-					LispObject::new(LispObjectKind::Num(1)),
+					LispObject::new_num(1),
 					LispObject::new_cons(
-						LispObject::new(LispObjectKind::Num(2)),
-						LispObject::new_cons(
-							LispObject::new(LispObjectKind::Num(3)),
-							LispObject::new_nil(),
-						)
+						LispObject::new_num(2),
+						LispObject::new_cons(LispObject::new_num(3), LispObject::new_nil(),)
 					),
 				),
 				LispObject::new_cons(
 					LispObject::new_cons(
-						LispObject::new(LispObjectKind::Num(4)),
+						LispObject::new_num(4),
 						LispObject::new_cons(
-							LispObject::new(LispObjectKind::Num(5)),
+							LispObject::new_num(5),
 							LispObject::new_cons(
 								LispObject::new_cons(
-									LispObject::new(LispObjectKind::Num(6)),
+									LispObject::new_num(6),
 									LispObject::new_cons(
-										LispObject::new(LispObjectKind::Num(7)),
+										LispObject::new_num(7),
 										LispObject::new_nil(),
 									),
 								),
 								LispObject::new_cons(
 									LispObject::new_cons(
-										LispObject::new(LispObjectKind::Num(8)),
+										LispObject::new_num(8),
 										LispObject::new_nil(),
 									),
 									LispObject::new_nil(),
@@ -307,13 +322,10 @@ mod tests {
 			objs,
 			vec![
 				LispObject::new_cons(
-					LispObject::new(LispObjectKind::Num(1)),
-					LispObject::new_cons(
-						LispObject::new(LispObjectKind::Num(2)),
-						LispObject::new_nil(),
-					),
+					LispObject::new_num(1),
+					LispObject::new_cons(LispObject::new_num(2), LispObject::new_nil(),),
 				),
-				LispObject::new(LispObjectKind::Sym("hello".to_owned().into())),
+				LispObject::new_sym("hello".to_owned()),
 			]
 		);
 	}
