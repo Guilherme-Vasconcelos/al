@@ -4,11 +4,11 @@ use std::fmt;
 use crate::object::{LispObject, LispObjectKind};
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum PrimitiveError {
+pub enum FuncallError {
 	WrongType,
 }
 
-impl fmt::Display for PrimitiveError {
+impl fmt::Display for FuncallError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			Self::WrongType => write!(f, "wrong type"),
@@ -16,35 +16,30 @@ impl fmt::Display for PrimitiveError {
 	}
 }
 
-impl Error for PrimitiveError {}
+impl Error for FuncallError {}
 
-pub fn add(args: LispObject) -> Result<LispObject, PrimitiveError> {
+#[allow(
+	clippy::needless_pass_by_value,
+	reason = "The signature must be the same for every primitive so that it can be stored as a function pointer. However, there's no guarantee that every primitive will not consume the object. May be reviewed in the future when we have more examples."
+)]
+pub fn primitive_add(args: LispObject) -> Result<LispObject, FuncallError> {
 	if let LispObjectKind::Cons(_) = &args.kind {
-		let mut iterator = args.into_iter();
-		if iterator
-			.filter(|obj| obj.kind == LispObjectKind::Nil)
-			.collect::<Vec<_>>()
-			.len() > 1
-		{
-			// There's exactly 1 NIL that is acceptable: the trailing NIL that every list has.
-			// If the list contains any man-made NIL, it's an error.
-			return Err(PrimitiveError::WrongType);
-		}
-
 		let mut iterator = args.into_iter();
 		let sum = iterator.try_fold(0, |acc, obj| {
 			if let LispObjectKind::Num(n) = obj.kind {
 				// TODO: Right now, we use `wrapping_add` to avoid a panic. But in the future
 				// it would be good to support big nums.
 				Ok(i64::wrapping_add(acc, n))
-			} else if let LispObjectKind::Nil = obj.kind {
-				Ok(acc)
 			} else {
-				Err(PrimitiveError::WrongType)
+				Err(FuncallError::WrongType)
 			}
 		})?;
 
-		Ok(LispObject::new_num(sum))
+		if iterator.is_proper() {
+			Ok(LispObject::new_num(sum))
+		} else {
+			Err(FuncallError::WrongType)
+		}
 	} else {
 		panic!("args to the add function must be a cons cell");
 	}
@@ -67,7 +62,7 @@ mod tests {
 	fn test_sum_of_flat_list() {
 		let input = "(1 2 3 4)";
 		let obj = build_obj_from_src(input);
-		let result = add(obj).unwrap();
+		let result = primitive_add(obj).unwrap();
 		assert_eq!(result, LispObject::new_num(1 + 2 + 3 + 4));
 	}
 
@@ -75,17 +70,28 @@ mod tests {
 	fn test_list_with_wrong_nil_type() {
 		let input = "(1 2 nil 3 4)";
 		let obj = build_obj_from_src(input);
-		let result = add(obj);
+		let result = primitive_add(obj);
 		assert!(result.is_err());
-		assert_eq!(result.unwrap_err(), PrimitiveError::WrongType);
+		assert_eq!(result.unwrap_err(), FuncallError::WrongType);
 	}
 
 	#[test]
 	fn test_list_with_wrong_list_type() {
 		let input = "(1 2 (123) 3 4)";
 		let obj = build_obj_from_src(input);
-		let result = add(obj);
+		let result = primitive_add(obj);
 		assert!(result.is_err());
-		assert_eq!(result.unwrap_err(), PrimitiveError::WrongType);
+		assert_eq!(result.unwrap_err(), FuncallError::WrongType);
+	}
+
+	#[test]
+	fn test_improper_list() {
+		let obj = LispObject::new_cons(
+			LispObject::new_sym("+".into()),
+			LispObject::new_cons(LispObject::new_num(1), LispObject::new_num(2)),
+		);
+		let result = primitive_add(obj);
+		assert!(result.is_err());
+		assert_eq!(result.unwrap_err(), FuncallError::WrongType);
 	}
 }

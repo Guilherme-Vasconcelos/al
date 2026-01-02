@@ -8,9 +8,10 @@
 mod cursor;
 mod environment;
 mod error;
+mod evaluator;
+mod func;
 mod interpreter;
 mod object;
-mod primitive;
 mod reader;
 mod tokenizer;
 

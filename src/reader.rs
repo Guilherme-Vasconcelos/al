@@ -157,6 +157,7 @@ fn make_atom_from_token(tok: &Token) -> LispObject {
 #[cfg(test)]
 mod tests {
 	use super::*;
+	use crate::object::LispObjConsBuilder;
 	use crate::tokenizer::parse_bytes;
 
 	fn build_objs_from_src(src: &str) -> Result<Vec<LispObject>, ReadingError> {
@@ -274,43 +275,27 @@ mod tests {
 		let input = "((1 2 3) (4 5 (6 7) (8)))";
 		let objs = build_objs_from_src(input).unwrap();
 
-		assert_eq!(
-			objs,
-			vec![LispObject::new_cons(
-				LispObject::new_cons(
+		let expected = vec![
+			LispObjConsBuilder::from(vec![
+				LispObjConsBuilder::from(vec![
 					LispObject::new_num(1),
-					LispObject::new_cons(
-						LispObject::new_num(2),
-						LispObject::new_cons(LispObject::new_num(3), LispObject::new_nil(),)
-					),
-				),
-				LispObject::new_cons(
-					LispObject::new_cons(
-						LispObject::new_num(4),
-						LispObject::new_cons(
-							LispObject::new_num(5),
-							LispObject::new_cons(
-								LispObject::new_cons(
-									LispObject::new_num(6),
-									LispObject::new_cons(
-										LispObject::new_num(7),
-										LispObject::new_nil(),
-									),
-								),
-								LispObject::new_cons(
-									LispObject::new_cons(
-										LispObject::new_num(8),
-										LispObject::new_nil(),
-									),
-									LispObject::new_nil(),
-								),
-							),
-						),
-					),
-					LispObject::new_nil(),
-				),
-			)]
-		);
+					LispObject::new_num(2),
+					LispObject::new_num(3),
+				])
+				.build(),
+				LispObjConsBuilder::from(vec![
+					LispObject::new_num(4),
+					LispObject::new_num(5),
+					LispObjConsBuilder::from(vec![LispObject::new_num(6), LispObject::new_num(7)])
+						.build(),
+					LispObjConsBuilder::from(vec![LispObject::new_num(8)]).build(),
+				])
+				.build(),
+			])
+			.build(),
+		];
+
+		assert_eq!(objs, expected,);
 	}
 
 	#[test]
