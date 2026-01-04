@@ -1,7 +1,7 @@
 use std::fmt;
 use std::rc::Rc;
 
-use crate::environment::Environment;
+use crate::environment::Env;
 use crate::func::FuncallError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -58,7 +58,7 @@ impl LispObject {
 		match &self.kind {
 			LispObjectKind::Func(f) => match f {
 				Func::Primitive(p) => p(args),
-				Func::Closure(_c) => {
+				Func::Closure(_, _) => {
 					panic!("closure is not yet supported")
 				}
 			},
@@ -83,11 +83,10 @@ impl fmt::Display for LispObject {
 				write!(f, "NIL")
 			}
 			LispObjectKind::Func(func) => match func {
-				// TODO: Ideally show something about the body/args/env.
-				Func::Primitive(_) => {
-					write!(f, "NATIVE FUNCTION")
+				Func::Primitive(_funcptr) => {
+					write!(f, "NATIVE_FUNCTION()")
 				}
-				Func::Closure(_) => {
+				Func::Closure(_env, _funcptr) => {
 					write!(f, "CLOSURE")
 				}
 			},
@@ -126,7 +125,7 @@ pub struct LispObjConsBuilder {
 impl LispObjConsBuilder {
 	pub fn new() -> Self {
 		let root = LispObject::new_empty_cons();
-		LispObjConsBuilder { root, is_new: true }
+		Self { root, is_new: true }
 	}
 
 	#[cfg(test)]
@@ -165,9 +164,8 @@ impl LispObjConsBuilder {
 					if matches!(cons.cdr.kind, LispObjectKind::Nil) {
 						*cons.cdr = LispObject::new_cons(obj, LispObject::new_nil());
 						return;
-					} else {
-						current = &mut cons.cdr;
 					}
+					current = &mut cons.cdr;
 				}
 				_ => panic!("root is not a Cons"),
 			}
@@ -206,10 +204,8 @@ impl Cons {
 pub enum Func {
 	/// Args -> Return
 	Primitive(fn(LispObject) -> Result<LispObject, FuncallError>),
-	/// Body, Environment, Args -> Return
-	/// FIXME: I shouldn't pass the environment when *calling* the function, therefore it should live
-	/// in the Func object, not in the function pointer.
-	Closure(fn(LispObject, Environment, LispObject) -> LispObject),
+	/// Body, Args -> Return
+	Closure(Env, fn(LispObject, LispObject) -> LispObject),
 }
 
 /// This is an iterator to help traverse CARs of lists.
@@ -217,6 +213,7 @@ pub enum Func {
 /// For example:
 /// - (1 2 3) -> yields 1, then 2, then 3.
 /// - (1 2 . 3) -> yields 1, then 2. If you want the 3, use `iterator.tail`.
+///
 /// `tail` is only set once the iterator is consumed. If you try to access it earlier,
 /// it will always yield None (even if the list is improper); and if you try to call
 /// `self.is_proper()` you'll always get a panic.
@@ -226,7 +223,7 @@ pub struct LispObjectIter<'a> {
 }
 
 impl<'a> LispObjectIter<'a> {
-	pub fn new(start: &'a LispObject) -> Self {
+	pub const fn new(start: &'a LispObject) -> Self {
 		Self {
 			current: Some(start),
 			tail: None,

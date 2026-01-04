@@ -1,3 +1,5 @@
+//! Module responsible for turning a stream of tokens into a stream of lisp objects.
+//!
 //! A few special notes about the reader:
 //!
 //! '()', i.e. empty list. This is the only case where the reader may produce a `LispObject` NIL
