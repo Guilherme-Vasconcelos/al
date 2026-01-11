@@ -1,22 +1,4 @@
-use std::error::Error;
-use std::fmt;
-
-use crate::object::{LispObject, LispObjectKind};
-
-#[derive(Debug, PartialEq, Eq)]
-pub enum FuncallError {
-	WrongType,
-}
-
-impl fmt::Display for FuncallError {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		match self {
-			Self::WrongType => write!(f, "wrong type"),
-		}
-	}
-}
-
-impl Error for FuncallError {}
+use crate::object::{FuncallError, LispObject, LispObjectKind};
 
 #[allow(
 	clippy::needless_pass_by_value,

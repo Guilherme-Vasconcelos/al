@@ -2,8 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::func;
 use crate::object::LispObject;
+use crate::prim;
 
 pub type Env = Rc<RefCell<Environment>>;
 
@@ -19,7 +19,7 @@ pub fn new_global_env() -> Env {
 		parent: None,
 		values: HashMap::new(),
 	};
-	env.set("+", LispObject::new_primitive(func::primitive_add));
+	env.set("+", LispObject::new_primitive(prim::primitive_add));
 	Rc::new(RefCell::new(env))
 }
 
@@ -44,11 +44,11 @@ impl Environment {
 		self.parent.is_none()
 	}
 
-	pub fn hierarchy_lookup(&self, key: &str) -> Option<LispObject> {
+	pub fn hierarchical_get(&self, key: &str) -> Option<LispObject> {
 		self.get(key).or_else(|| {
 			self.parent
 				.as_ref()
-				.and_then(|p| p.borrow().hierarchy_lookup(key))
+				.and_then(|p| p.borrow().hierarchical_get(key))
 		})
 	}
 }

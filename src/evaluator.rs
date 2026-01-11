@@ -13,8 +13,7 @@ use std::error::Error;
 use std::fmt;
 
 use crate::environment::Env;
-use crate::func::FuncallError;
-use crate::object::{Func, LispObjConsBuilder, LispObject, LispObjectKind};
+use crate::object::{Cons, Func, FuncallError, LispObjConsBuilder, LispObject, LispObjectKind};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalError {
@@ -59,34 +58,30 @@ pub fn eval(env: Env, obj: &LispObject) -> Result<LispObject, EvalError> {
 		LispObjectKind::Num(_) | LispObjectKind::Nil | LispObjectKind::Func(_) => Ok(obj.clone()),
 		LispObjectKind::Sym(s) => {
 			let envb = env.borrow();
-			envb.hierarchy_lookup(s).ok_or(EvalError::UnboundSymbol)
+			envb.hierarchical_get(s).ok_or(EvalError::UnboundSymbol)
 		}
-		LispObjectKind::Cons(c) => {
-			let car = &c.car;
-			let func;
-			match &car.kind {
-				LispObjectKind::Sym(s) => {
-					let env = env.borrow();
-					let func_obj = env.hierarchy_lookup(s).ok_or(EvalError::UnboundSymbol)?;
-					if let LispObjectKind::Func(f) = &func_obj.kind {
-						func = f.clone();
-					} else {
-						return Err(EvalError::NotAFunction);
-					}
-				}
+		LispObjectKind::Cons(c) => eval_cons(env, c),
+	}
+}
+
+fn eval_cons(env: Env, cons: &Cons) -> Result<LispObject, EvalError> {
+	let car = &cons.car;
+	let func = match &car.kind {
+		LispObjectKind::Sym(s) => {
+			let env = env.borrow();
+			let funcobj = env.hierarchical_get(s).ok_or(EvalError::UnboundSymbol)?;
+
+			match &funcobj.kind {
+				LispObjectKind::Func(f) => funcobj,
 				_ => return Err(EvalError::NotAFunction),
 			}
-
-			let args = flat_eval_each(env, &c.cdr)?;
-			match func {
-				Func::Primitive(p) => {
-					let func_obj = LispObject::new_primitive(p);
-					func_obj.call_func(args).map_err(EvalError::Runtime)
-				}
-				Func::Closure(_, _) => panic!("closure is not supported yet"),
-			}
 		}
-	}
+
+		_ => return Err(EvalError::NotAFunction),
+	};
+
+	let args = flat_eval_each(env, &cons.cdr)?;
+	func.call_func(args).map_err(EvalError::Runtime)
 }
 
 #[cfg(test)]

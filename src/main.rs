@@ -9,9 +9,9 @@ mod cursor;
 mod environment;
 mod error;
 mod evaluator;
-mod func;
 mod interpreter;
 mod object;
+mod prim;
 mod reader;
 mod tokenizer;
 

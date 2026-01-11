@@ -1,8 +1,8 @@
+use std::error::Error;
 use std::fmt;
 use std::rc::Rc;
 
 use crate::environment::Env;
-use crate::func::FuncallError;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum LispObjectKind {
@@ -207,6 +207,21 @@ pub enum Func {
 	/// Body, Args -> Return
 	Closure(Env, fn(LispObject, LispObject) -> LispObject),
 }
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum FuncallError {
+	WrongType,
+}
+
+impl fmt::Display for FuncallError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::WrongType => write!(f, "wrong type"),
+		}
+	}
+}
+
+impl Error for FuncallError {}
 
 /// This is an iterator to help traverse CARs of lists.
 /// Notice that the tail of a list is never yielded. Use `iterator.tail` instead.
