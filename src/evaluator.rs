@@ -13,7 +13,7 @@ use std::error::Error;
 use std::fmt;
 
 use crate::environment::Env;
-use crate::object::{Cons, Func, FuncallError, LispObjConsBuilder, LispObject, LispObjectKind};
+use crate::object::{Cons, FuncallError, LispObjConsBuilder, LispObject, LispObjectKind};
 
 #[derive(Debug, PartialEq, Eq)]
 pub enum EvalError {
@@ -72,7 +72,7 @@ fn eval_cons(env: Env, cons: &Cons) -> Result<LispObject, EvalError> {
 			let funcobj = env.hierarchical_get(s).ok_or(EvalError::UnboundSymbol)?;
 
 			match &funcobj.kind {
-				LispObjectKind::Func(f) => funcobj,
+				LispObjectKind::Func(_f) => funcobj,
 				_ => return Err(EvalError::NotAFunction),
 			}
 		}

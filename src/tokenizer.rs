@@ -24,6 +24,7 @@ pub fn parse_bytes(buf: &[u8]) -> Result<Vec<Token>, TokenizationError> {
 pub enum TokenizationError {
 	MalformedNumber,
 	UnsupportedBigNumber,
+	UnfinishedComment,
 }
 
 impl fmt::Display for TokenizationError {
@@ -31,6 +32,7 @@ impl fmt::Display for TokenizationError {
 		match self {
 			Self::MalformedNumber => write!(f, "malformed number"),
 			Self::UnsupportedBigNumber => write!(f, "big numbers are not supported yet"),
+			Self::UnfinishedComment => write!(f, "unfinished comment"),
 		}
 	}
 }
@@ -81,6 +83,8 @@ impl<'a> Tokenizer<'a> {
 	}
 
 	fn parse_negative_num(&mut self) -> Result<Token, TokenizationError> {
+		// FIXME: - is a valid name for a variable.
+
 		assert!(self.cursor.peek().is_some_and(|c| *c == b'-'));
 		self.cursor.advance();
 
@@ -98,6 +102,26 @@ impl<'a> Tokenizer<'a> {
 			_ => panic!("expected parse_num's result to be a number"),
 		}
 		Ok(tok)
+	}
+
+	fn skip_comment(&mut self) -> Result<(), TokenizationError> {
+		assert!(self.cursor.peek().is_some_and(|c| *c == b';'));
+		self.cursor.advance();
+
+		let mut maybe_c = self.cursor.peek();
+		if maybe_c.is_none() || maybe_c.is_some_and(|c| *c != b';') {
+			return Err(TokenizationError::UnfinishedComment);
+		}
+
+		while maybe_c.is_some_and(|c| *c != b'\n') {
+			self.cursor.advance();
+			maybe_c = self.cursor.peek();
+		}
+		if maybe_c.is_some() {
+			self.cursor.advance(); // Skip the newline itself
+		}
+
+		Ok(())
 	}
 
 	fn parse_sym(&mut self) -> Token {
@@ -134,15 +158,35 @@ impl<'a> Tokenizer<'a> {
 			kind: TokenKind::ParenClose,
 		}
 	}
+
+	fn skip_whitespaces_or_comments(&mut self) -> Result<(), TokenizationError> {
+		loop {
+			let mut brk = true;
+
+			while self.cursor.peek().is_some_and(u8::is_ascii_whitespace) {
+				brk = false;
+				self.cursor.advance();
+			}
+			while self.cursor.peek().is_some_and(|c| *c == b';') {
+				brk = false;
+				self.skip_comment()?;
+			}
+
+			if brk {
+				break;
+			}
+		}
+
+		Ok(())
+	}
 }
 
 impl Iterator for Tokenizer<'_> {
 	type Item = Result<Token, TokenizationError>;
 
 	fn next(&mut self) -> Option<Self::Item> {
-		while self.cursor.peek().is_some_and(u8::is_ascii_whitespace) {
-			// Skip all whitespaces
-			self.cursor.advance();
+		if let Err(e) = self.skip_whitespaces_or_comments() {
+			return Some(Err(e));
 		}
 
 		let c = self.cursor.peek()?;
@@ -409,6 +453,19 @@ mod tests {
 	}
 
 	#[test]
+	fn test_variable_named_minus() {
+		let input = "-";
+		let tokens = build_tokens_from_src(input).unwrap();
+
+		assert_eq!(
+			tokens,
+			vec![Token {
+				kind: TokenKind::Sym("-".to_owned())
+			}]
+		);
+	}
+
+	#[test]
 	fn test_double_negative_number() {
 		let input = "--1";
 		let tokens = build_tokens_from_src(input);
@@ -435,6 +492,40 @@ mod tests {
 					kind: TokenKind::ParenClose
 				},
 			]
+		);
+	}
+
+	#[test]
+	fn test_comment_is_skipped() {
+		let input = ";;This is a comment\n;; Another comment\nnil\n";
+		let tokens = build_tokens_from_src(input).unwrap();
+
+		assert_eq!(
+			tokens,
+			vec![Token {
+				kind: TokenKind::Sym("nil".to_owned())
+			},]
+		);
+	}
+
+	#[test]
+	fn test_malformed_comment_is_err() {
+		let input = ";\n";
+		let tokens = build_tokens_from_src(input);
+
+		assert!(tokens.is_err());
+		assert!(tokens.unwrap_err() == TokenizationError::UnfinishedComment);
+	}
+
+	#[test]
+	fn test_mix_of_comments_and_spaces_is_skipped() {
+		let input = "  \n;; Hello!\n  ;; Hii\n  +";
+		let tokens = build_tokens_from_src(input).unwrap();
+		assert_eq!(
+			tokens,
+			vec![Token {
+				kind: TokenKind::Sym("+".to_owned())
+			},]
 		);
 	}
 }
